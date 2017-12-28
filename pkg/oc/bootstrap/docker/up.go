@@ -332,6 +332,7 @@ func (c *CommonStartConfig) Complete(f *osclientcmd.Factory, cmd *cobra.Command)
 	c.addTask(simpleTask("Checking OpenShift client", c.CheckOpenShiftClient))
 
 	c.addTask(conditionalTask("Create Docker machine", c.CreateDockerMachine, func() bool { return c.ShouldCreateDockerMachine }))
+
 	// Get a Docker client.
 	// If a Docker machine was specified, make sure that the machine is running.
 	// Otherwise, use environment variables.
@@ -340,6 +341,8 @@ func (c *CommonStartConfig) Complete(f *osclientcmd.Factory, cmd *cobra.Command)
 	// Check that we have the minimum Docker version available to run OpenShift
 	c.addTask(simpleTask("Checking Docker version", c.CheckDockerVersion))
 
+	c.addTask(conditionalTask("Checking prerequisites for port forwarding", c.CheckPortForwardingPrerequisites, func() bool { return c.PortForwarding }))
+	
 	// Check for an OpenShift container. If one exists and is running, exit.
 	// If one exists but not running, delete it.
 	c.addTask(simpleTask("Checking for existing OpenShift container", c.CheckExistingOpenShiftContainer))
@@ -724,6 +727,20 @@ func (c *CommonStartConfig) CheckDockerVersion(out io.Writer) error {
 		fmt.Fprintf(out, "WARNING: Docker version is %v, it needs to be >= %v\n", ver, dockerAPIVersion122)
 	}
 	return nil
+}
+
+
+// CheckPortForwardingPrerequisites checks that socat is installed when port forwarding is enabled
+// Socat needs to be installed manually on MacOS
+func (c *CommonStartConfig) CheckPortForwardingPrerequisites(out io.Writer) error {
+	cmd := exec.Command("socat")
+	err := cmd.Run()
+	if err != nil {
+		glog.V(2).Infof("Failed to execute socat", err)
+		fmt.Fprintf(out, "WARNING: Port forwarding requires socat command line utility."+
+				 "Cluster public ip may not be rechable. Please make sure socat installed in your operating system \n")
+	}
+ 	return nil
 }
 
 func (c *CommonStartConfig) EnsureHostDirectories(io.Writer) error {
